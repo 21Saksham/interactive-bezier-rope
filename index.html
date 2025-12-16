@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Springy Bézier Curve Interaction</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #111;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<script>
+/* ================================
+   CANVAS INITIALIZATION
+================================ */
+const view = document.getElementById("view");
+const pen = view.getContext("2d");
+
+function fitScreen() {
+  view.width = window.innerWidth;
+  view.height = window.innerHeight;
+}
+window.addEventListener("resize", fitScreen);
+fitScreen();
+
+/* ================================
+   BASIC VECTOR IMPLEMENTATION
+================================ */
+class Vector {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+
+  plus(v) { return new Vector(this.x + v.x, this.y + v.y); }
+  minus(v) { return new Vector(this.x - v.x, this.y - v.y); }
+  scale(n) { return new Vector(this.x * n, this.y * n); }
+
+  magnitude() {
+    return Math.sqrt(this.x * this.x + this.y * this.y);
+  }
+
+  unit() {
+    const m = this.magnitude() || 1;
+    return new Vector(this.x / m, this.y / m);
+  }
+}
+
+/* ================================
+   BEZIER CONTROL POINTS
+================================ */
+const start = new Vector(120, view.height / 2);
+const end = new Vector(view.width - 120, view.height / 2);
+
+let ctrlA = new Vector(300, view.height / 2 - 140);
+let ctrlB = new Vector(view.width - 300, view.height / 2 - 140);
+
+/* ================================
+   SPRING STATE
+================================ */
+let velA = new Vector(0, 0);
+let velB = new Vector(0, 0);
+
+let goalA = ctrlA;
+let goalB = ctrlB;
+
+const stiffness = 0.07;
+const friction = 0.86;
+
+/* ================================
+   USER INPUT (MOUSE)
+================================ */
+view.addEventListener("mousemove", (e) => {
+  const x = e.clientX;
+  const y = e.clientY;
+
+  goalA = new Vector(x - 130, y - 90);
+  goalB = new Vector(x + 130, y - 90);
+});
+
+/* ================================
+   CUBIC BEZIER EQUATION
+================================ */
+function bezierPoint(t, a, b, c, d) {
+  const s = 1 - t;
+
+  return a.scale(s * s * s)
+    .plus(b.scale(3 * s * s * t))
+    .plus(c.scale(3 * s * t * t))
+    .plus(d.scale(t * t * t));
+}
+
+function bezierSlope(t, a, b, c, d) {
+  const s = 1 - t;
+
+  return b.minus(a).scale(3 * s * s)
+    .plus(c.minus(b).scale(6 * s * t))
+    .plus(d.minus(c).scale(3 * t * t));
+}
+
+/* ================================
+   SPRING MOTION UPDATE
+================================ */
+function springMove(pos, vel, target) {
+  const accel = pos.minus(target).scale(-stiffness);
+  vel = vel.plus(accel).scale(friction);
+  pos = pos.plus(vel);
+  return { pos, vel };
+}
+
+/* ================================
+   DRAWING HELPERS
+================================ */
+function drawDot(p, size, col) {
+  pen.fillStyle = col;
+  pen.beginPath();
+  pen.arc(p.x, p.y, size, 0, Math.PI * 2);
+  pen.fill();
+}
+
+function drawDirection(p, dir) {
+  pen.strokeStyle = "#3cff99";
+  pen.beginPath();
+  pen.moveTo(p.x, p.y);
+  pen.lineTo(p.x + dir.x * 45, p.y + dir.y * 45);
+  pen.stroke();
+}
+
+function renderCurve() {
+  pen.strokeStyle = "#fff";
+  pen.lineWidth = 2;
+  pen.beginPath();
+
+  for (let t = 0; t <= 1; t += 0.01) {
+    const pt = bezierPoint(t, start, ctrlA, ctrlB, end);
+    t === 0 ? pen.moveTo(pt.x, pt.y) : pen.lineTo(pt.x, pt.y);
+  }
+  pen.stroke();
+}
+
+/* ================================
+   MAIN ANIMATION LOOP
+================================ */
+function loop() {
+  pen.clearRect(0, 0, view.width, view.height);
+
+  let sA = springMove(ctrlA, velA, goalA);
+  let sB = springMove(ctrlB, velB, goalB);
+
+  ctrlA = sA.pos; velA = sA.vel;
+  ctrlB = sB.pos; velB = sB.vel;
+
+  renderCurve();
+
+  for (let t = 0.25; t < 1; t += 0.25) {
+    const pt = bezierPoint(t, start, ctrlA, ctrlB, end);
+    const dir = bezierSlope(t, start, ctrlA, ctrlB, end).unit();
+    drawDirection(pt, dir);
+  }
+
+  drawDot(start, 5, "#5f6cff");
+  drawDot(end, 5, "#5f6cff");
+  drawDot(ctrlA, 7, "#ff5c5c");
+  drawDot(ctrlB, 7, "#ff5c5c");
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>

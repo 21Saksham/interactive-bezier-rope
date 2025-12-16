@@ -1,4 +1,4 @@
-# interactive-bezier-rope
+
 
 # Interactive Cubic Bézier Rope
 
